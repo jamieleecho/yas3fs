@@ -47,6 +47,7 @@ import boto.s3.connection
 import boto.sns
 import boto.sqs
 import boto.utils
+from boto.s3.connection import S3Connection
 
 from boto.utils import compute_md5, compute_hash
 from boto.s3.key import Key
@@ -619,7 +620,7 @@ class SNS_HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         string_to_sign = '\n'.join(list(itertools.chain.from_iterable(
                     [ (k, message_content[k]) for k in sorted(message_content.iterkeys()) ]
                     ))) + '\n'
-        
+
         import M2Crypto # Required to check integrity of SNS HTTP notifications
         cert = M2Crypto.X509.load_cert_string(self.certificate)
         pub_key = cert.get_pubkey().get_rsa()
@@ -855,7 +856,7 @@ class YAS3FS(LoggingMixIn, Operations):
             error_and_exit("wrong AWS region '%s' for S3" % self.aws_region)
         try:
             s3kw = {
-                'calling_format': boto.s3.connection.OrdinaryCallingFormat(),
+                'calling_format': 'boto.s3.connection.OrdinaryCallingFormat',
             }
 
             if options.s3_use_sigv4:
@@ -864,7 +865,7 @@ class YAS3FS(LoggingMixIn, Operations):
             if options.s3_endpoint:
                 s3kw['host'] = options.s3_endpoint
 
-            self.s3 = boto.connect_s3(**s3kw)
+            self.s3 = S3Connection(**s3kw)
         except boto.exception.NoAuthHandlerFound:
             error_and_exit("no AWS credentials found")
         if not self.s3:
@@ -891,7 +892,7 @@ class YAS3FS(LoggingMixIn, Operations):
                     s3kw['host'] = "s3.%s.amazonaws.com" % region_name
 
                 # Reconnect to s3.
-                self.s3 = boto.connect_s3(**s3kw)
+                self.s3 = S3Connection(**s3kw)
                 self.s3_bucket = self.s3.get_bucket(self.s3_bucket_name, headers=self.default_headers, validate=False)
 
             self.s3_bucket.key_class = UTF8DecodingKey
@@ -1264,11 +1265,11 @@ class YAS3FS(LoggingMixIn, Operations):
                 with self.cache.lock:
                     self.flush_all_cache()
                     self.cache.reset_all() # Completely reset the cache
-            else: 
+            else:
                 # c[2] exists and is not the root directory
                 for path in self.cache.entries.keys():
-                    # If the reset path is a directory and it matches 
-                    # the directory in the cache, it will delete the 
+                    # If the reset path is a directory and it matches
+                    # the directory in the cache, it will delete the
                     # parent directory cache as well.
                     if path.startswith(c[2]):
                         self.delete_cache(path)
@@ -2590,7 +2591,7 @@ class YAS3FS(LoggingMixIn, Operations):
                 if retriesAttempted > 1:
                     logger.debug('%d retries' % (retriesAttempted))
                     time.sleep(self.read_retries_sleep)
-                
+
                 # Note added max retries as this can go on forever... for https://github.com/danilop/yas3fs/issues/46
                 logger.debug("read '%s' '%i' '%i' '%s' out of range" % (path, length, offset, fh))
                 self.enqueue_download_data(path, offset, length)
